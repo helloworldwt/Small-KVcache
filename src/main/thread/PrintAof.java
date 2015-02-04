@@ -23,7 +23,7 @@ public class PrintAof extends Thread{
             while(true){    //循环什么时候退出,cpu核占用,阻塞,事件,退出,开线程试一下，set，put,时间。使用
                 if(queue.size()!=0){   //hashmap的时间,chunk大小,memcached和redis对比。load数据
                     BufferedWriter out =new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename,true)));
-                    out.write(queue.poll()+" "); //s特殊字符，转义字符,可以每次都写完,写socket规范模式
+                    out.write(queue.poll()+"\n"); //s特殊字符，转义字符,可以每次都写完,写socket规范模式
                     out.flush();
                     out.close();
                 }

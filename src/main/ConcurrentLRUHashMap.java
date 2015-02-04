@@ -1,16 +1,7 @@
 package main;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.AbstractCollection;
-import java.util.AbstractMap;
-import java.util.AbstractSet;
-import java.util.Collection;
-import java.util.ConcurrentModificationException;
-import java.util.Enumeration;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
@@ -170,11 +161,17 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
          */
         AtomicBoolean dead;
 
-        HashEntry(K key, int hash, HashEntry<K, V> next, V value) {
+        /**
+         * 过期时间
+         */
+        Date overtime;
+
+        HashEntry(K key, int hash, HashEntry<K, V> next, V value,Date t) {
             this.key = key;
             this.hash = hash;
             this.next = next;
             this.value = value;
+            this.overtime=t;
             dead = new AtomicBoolean(false);
         }
 
@@ -277,7 +274,7 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
             this.maxCapacity = maxCapacity;
             loadFactor = lf;
             setTable(HashEntry.<K, V> newArray(maxCapacity));
-            header = new HashEntry<K, V>(null, -1, null, null);
+            header = new HashEntry<K, V>(null, -1, null, null,null);
             header.linkNext = header;
             header.linkPrev = header;
         }
@@ -319,7 +316,7 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
             }
         }
 
-                /* Specialized implementations of map methods */
+         /* Specialized implementations of map methods */
 
         V get(Object key, int hash) {
             lock();
@@ -328,6 +325,11 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
                     HashEntry<K, V> e = getFirst(hash);
                     while (e != null) {
                         if (e.hash == hash && key.equals(e.key)) {
+                            //删除过期数据
+                            Date t=new Date(System.currentTimeMillis());
+                            if(e.overtime!=null)
+                                if(t.after(e.overtime)){removeNode(e);return null;}
+
                             V v = e.value;
                             // 将节点移动到头节点之前
                             moveNodeToHeader(e);
@@ -465,7 +467,7 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
             }
         }
 
-        V put(K key, int hash, V value, boolean onlyIfAbsent) {
+        V put(K key, int hash, V value, boolean onlyIfAbsent,Date t) {
             lock();
             try {
                 int c = count;
@@ -479,17 +481,19 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
                     e = e.next;
 
                 V oldValue = null;
+                //如果插入的key存在的话，把value进行更新
                 if (e != null) {
                     oldValue = e.value;
                     if (!onlyIfAbsent) {
                         e.value = value;
+                        e.overtime=t;
                         // 移动到头部
                         moveNodeToHeader(e);
                     }
                 } else {
                     oldValue = null;
                     ++modCount;
-                    HashEntry<K, V> newEntry = new HashEntry<K, V>(key, hash, first, value);
+                    HashEntry<K, V> newEntry = new HashEntry<K, V>(key, hash, first, value,t);
                     tab[index] = newEntry;
                     count = c; // write-volatile
                     // 添加到双向链
@@ -556,7 +560,7 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
                             int k = p.hash & sizeMask;
                             HashEntry<K, V> n = newTable[k];
                             HashEntry<K, V> newEntry = new HashEntry<K, V>(
-                                    p.key, p.hash, n, p.value);
+                                    p.key, p.hash, n, p.value,p.overtime);
                             // update by Noah
                             newEntry.linkNext = p.linkNext;
                             newEntry.linkPrev = p.linkPrev;
@@ -594,7 +598,7 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
                         HashEntry<K, V> newFirst = e.next;
                         for (HashEntry<K, V> p = first; p != e; p = p.next) {
                             newFirst = new HashEntry<K, V>(p.key, p.hash,
-                                    newFirst, p.value);
+                                    newFirst, p.value,p.overtime);
                             newFirst.linkNext = p.linkNext;
                             newFirst.linkPrev = p.linkPrev;
                         }
@@ -897,15 +901,30 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
     }
 
     /**
-     * Put一个键值，加Map锁
+     * Put一个键值，加Map锁,传进一个生存时间
+     */
+    public V put(K key, V value,int t) {
+        if (value == null)
+            throw new NullPointerException();
+        int hash = hash(key.hashCode());
+        if(t<0)
+            throw new IllegalArgumentException();
+        if(t>2592000||t==0){ t=0;return segmentFor(hash).put(key, hash, value, false,null);}
+        Date nowtime=new Date(System.currentTimeMillis());
+        java.util.Calendar Cal=java.util.Calendar.getInstance();
+        Cal.setTime(nowtime);
+        Cal.add(Calendar.SECOND,t);
+        return segmentFor(hash).put(key, hash, value, false,Cal.getTime());
+    }
+    /**
+     * Put一个键值，加Map锁，缺省生存时间
      */
     public V put(K key, V value) {
         if (value == null)
             throw new NullPointerException();
         int hash = hash(key.hashCode());
-        return segmentFor(hash).put(key, hash, value, false);
+        return segmentFor(hash).put(key, hash, value, false,null);
     }
-
     /**
      * Put一个键值，如果该Key不存在的话
      */
@@ -913,7 +932,7 @@ public class ConcurrentLRUHashMap<K, V> extends AbstractMap<K, V> implements
         if (value == null)
             throw new NullPointerException();
         int hash = hash(key.hashCode());
-        return segmentFor(hash).put(key, hash, value, true);
+        return segmentFor(hash).put(key, hash, value, true,null);
     }
 
     /**
