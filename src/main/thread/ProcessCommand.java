@@ -8,8 +8,9 @@ import java.io.BufferedWriter;
 import java.io.OutputStreamWriter;
 import java.io.InputStreamReader;
 import java.net.Socket;
-import java.text.SimpleDateFormat;
 import java.util.Queue;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author WangTian
@@ -27,37 +28,40 @@ public class ProcessCommand extends Thread{
     }
     public void run(){
         try{
-            while (true){
+            while (true) {
                 BufferedReader br = new BufferedReader(new InputStreamReader(client.getInputStream()));
                 String mess = br.readLine();
                 BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
-                //输出返回值，写打印队列
-                String[] command=mess.split(" ");
-                String str="";
-
-                if(command[0].equals("set")&&!command[1].isEmpty()&&!command[2].isEmpty()&&command.length==3){
-                    map.put(command[1], command[2]);
-                    str += "true\n";
-                    queue.offer(mess);
-                    //  System.out.println(command.length);
+                //正则表达式进行匹配，错误输入提示重新输入
+                String regex="^set\\s[^\\s]{1,}\\s[^\\s]{1,}(\\s[\\d]{1,7})?|^get\\s[^\\s]{1,}|^delete\\s[^\\s]{1,}|^stats";
+                Pattern pattern=Pattern.compile(regex);
+                Matcher matcher=pattern.matcher(mess);
+                //输出字符
+                String str = "";
+                if(matcher.matches()){
+                    String[] command = mess.split(" ");
+                    if (command[0].equals("set")&& command.length == 3) {
+                        map.put(command[1], command[2]);
+                        str += "true\n";
+                        queue.offer(mess);}
+                    else if (command[0].equals("set") && command.length==4) {
+                        map.put(command[1], command[2], Integer.parseInt(command[3]));
+                        str += "true\n";
+                        long overt=System.currentTimeMillis()+Integer.parseInt(command[3])*1000;
+                        queue.offer(command[0] + " " + command[1] + " " +command[2] + " " +overt);}
+                    else if (command[0].equals("get")) {
+                        str += map.get(command[1]) + "";
+                        if (str.equals("null"))
+                            str += "\n";
+                        else
+                            str += "\n";}
+                    else if(command[0].equals("delete")){
+                        map.remove(command[1]);
+                        str+="remove "+command[1]+"!\n";
+                    }
                 }
-                else if(command[0].equals("set")&&!command[1].isEmpty()&&!command[2].isEmpty()&&!command[3].isEmpty()){
-                    map.put(command[1], command[2],Integer.parseInt(command[3])); // command安全验证,bloomhash,hash算法,lru,key ,没了.
-                    str += "true\n";
-                    SimpleDateFormat sDateFormat = new SimpleDateFormat("yyyyMMddhhmmss");//时间格式可以去掉冒号
-                    String date = sDateFormat.format(new java.util.Date());
-                    queue.offer(mess+" "+date);
-                }
-                else if(command[0].equals("get")&&!command[1].isEmpty()){
-                    str+=map.get(command[1])+"";
-                    if(str.equals("null"))
-                        str+="\n";
-                    else
-                        str += map.get(command[1])+"\n";
-                }
-
-              //  queue.offer(mess);   //如果设置了超时，则记下此刻时间
-
+                //非法输入，输出error
+                else str+="error!\n";
                 bw.write(str);
                 bw.flush();
             }

@@ -1,5 +1,7 @@
 package main.thread;
 
+import main.util.KeyMap;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -8,8 +10,8 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.TimerTask;
-import main.util.BloomFilter.BloomFilter;
 
 /**
  * Created by Wangtian on 2015/2/3.
@@ -30,16 +32,8 @@ public class RewriteAofTask extends TimerTask{
     }
     public boolean isOvertime(String command[]){
         boolean isOvertime=false;
-        try {
-            Date nowtime=new Date(System.currentTimeMillis());     //返回一个一个毫秒数,不用date
-            DateFormat format= new SimpleDateFormat("yyyyMMddHHmmss");
-            Date date=format.parse(command[4]);
-            Calendar Cal=Calendar.getInstance();
-            Cal.setTime(date);
-            Cal.add(Calendar.SECOND,Integer.parseInt(command[3]));
-            isOvertime=nowtime.after(date);         //存的时候存过期时间
-        }catch (ParseException e){
-            e.printStackTrace();
+        if(System.currentTimeMillis()<Integer.parseInt(command[3])){
+            isOvertime=true;
         }
         return isOvertime;
     }
@@ -59,7 +53,7 @@ public class RewriteAofTask extends TimerTask{
             RandomAccessFile write=new RandomAccessFile(newfilepath,"rw");
             long pos=read.length();        //文件末尾指针
             int i=0;                       //已经保存set命令的数目
-            BloomFilter bf=new BloomFilter(); //重复的key只保留一个
+            KeyMap km = new KeyMap();      //重复的key只保留一个
             //开始读入，写入
             while(pos>0&&i<mapsize){
                 read.seek(pos);
@@ -67,8 +61,7 @@ public class RewriteAofTask extends TimerTask{
                 if(read.readByte()=='\n'){
                     String command[]=read.readLine().split(" ");
                     if(command.length==3){
-                        if(!bf.contains(command[1])){
-                            bf.add(command[1]);
+                        if(km.put(command[1])){
                             i++;
                             write.seek(write.length());
                             write.write(read.readLine().getBytes());
@@ -76,8 +69,7 @@ public class RewriteAofTask extends TimerTask{
                     }
                     else {
                         if (!isOvertime(command)){
-                            if(!bf.contains(command[1])){
-                                bf.add(command[1]);
+                            if(km.put(command[1])){
                                 i++;
                                 write.seek(write.length());
                                 write.write(read.readLine().getBytes());

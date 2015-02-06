@@ -24,7 +24,7 @@ public class MyClient {
             Scanner scanner = new Scanner(System.in);
             while(true){
                 System.out.println("请输入发送消息内容：");
-                bw.write(scanner.nextLine()+"\n");   //有换行字符，所以command长度要加1
+                bw.write(scanner.nextLine()+"\n");
                 bw.newLine();
                 bw.flush();
                 BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream()));
