@@ -3,5 +3,6 @@
 # idea file
 *.iml
 .idea
+.gitignore
 
 # class file
