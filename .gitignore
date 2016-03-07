@@ -1,6 +1,7 @@
 # ignore setting file
 
 # idea file
-
+*.iml
+.idea
 
 # class file
