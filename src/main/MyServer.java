@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
 
 import main.thread.AofTask;
 import main.thread.ProcessCommand;
-import main.thread.RewriteAofTask;
+import main.util.ConcurrentLRUHashMap;
 
 /**
  * 接收命令的socket,和持久化数据

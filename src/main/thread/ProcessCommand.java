@@ -1,6 +1,6 @@
 package main.thread;
 
-import main.ConcurrentLRUHashMap;
+import main.util.ConcurrentLRUHashMap;
 
 import java.io.BufferedReader;
 import java.io.IOException;

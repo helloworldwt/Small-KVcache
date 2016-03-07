@@ -1,4 +1,4 @@
-package main;
+package main.util;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
